@@ -9,12 +9,15 @@ import (
 )
 
 func main() {
-	if err := startServer(); err != nil {
+
+	store := NewStore()
+
+	if err := startServer(store); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }
 
-func startServer() error {
+func startServer(store *Store) error {
 	// Open a port
 	listener, err := net.Listen("tcp", ":6379")
 	if err != nil {
@@ -30,11 +33,11 @@ func startServer() error {
 			log.Println("accept error:", err)
 			continue
 		}
-		go handleConnection(conn)
+		go handleConnection(conn, store)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, store *Store) {
 	defer conn.Close()
 	log.Println("connection from", conn.RemoteAddr())
 
@@ -43,7 +46,7 @@ func handleConnection(conn net.Conn) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		log.Println("line: ", line, "conn:", conn.RemoteAddr())
-		msg, err := processLine(line)
+		msg, err := processLine(line, store)
 
 		if err != nil {
 			fmt.Fprintln(conn, "ERR "+err.Error())
@@ -65,7 +68,7 @@ func validateParts(parts []string, expectedParts uint8) error {
 	return nil
 }
 
-func processLine(line string) (string, error) {
+func processLine(line string, store *Store) (string, error) {
 	parts := strings.Fields(line)
 	log.Println("parts: ", parts)
 	if len(parts) == 0 {
@@ -80,19 +83,31 @@ func processLine(line string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return "Did receive SET cmd", nil
+		key, val := parts[1], parts[2]
+		store.Set(key, val)
+		return "OK", nil
 	case "GET":
 		err := validateParts(parts, 2)
 		if err != nil {
 			return "", err
 		}
-		return "Did receive GET cmd", nil
+		key := parts[1]
+		val, ok := store.Get(key)
+		if !ok {
+			return "(nil)", nil
+		}
+		return val, nil
 	case "DEL":
 		err := validateParts(parts, 2)
 		if err != nil {
 			return "", err
 		}
-		return "Did receive DEL cmd", nil
+		key := parts[1]
+		if store.Delete(key) {
+			return "1", nil
+		} else {
+			return "0", nil
+		}
 	case "SUBSCRIBE":
 		err := validateParts(parts, 2)
 		if err != nil {
