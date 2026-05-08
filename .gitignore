@@ -1,0 +1,5 @@
+# Editor
+.vscode/
+
+# Compiled binary
+go-redis
