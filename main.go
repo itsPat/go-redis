@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 )
 
 func main() {
@@ -41,13 +42,70 @@ func handleConnection(conn net.Conn) {
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
 		line := scanner.Text()
-		log.Println(line)
-		// Echo the line back
-		fmt.Fprintln(conn, line)
+		log.Println("line: ", line, "conn:", conn.RemoteAddr())
+		msg, err := processLine(line)
+
+		if err != nil {
+			fmt.Fprintln(conn, "ERR "+err.Error())
+		} else if len(msg) > 0 {
+			fmt.Fprintln(conn, msg)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.Println("conn error:", err)
 		return
+	}
+}
+
+func validateParts(parts []string, expectedParts uint8) error {
+	if len(parts) != int(expectedParts) {
+		return fmt.Errorf("wrong number of arguments for '%v'", parts[0])
+	}
+	return nil
+}
+
+func processLine(line string) (string, error) {
+	parts := strings.Fields(line)
+	log.Println("parts: ", parts)
+	if len(parts) == 0 {
+		return "", nil
+	}
+
+	cmd := strings.ToUpper(parts[0])
+
+	switch cmd {
+	case "SET":
+		err := validateParts(parts, 3)
+		if err != nil {
+			return "", err
+		}
+		return "Did receive SET cmd", nil
+	case "GET":
+		err := validateParts(parts, 2)
+		if err != nil {
+			return "", err
+		}
+		return "Did receive GET cmd", nil
+	case "DEL":
+		err := validateParts(parts, 2)
+		if err != nil {
+			return "", err
+		}
+		return "Did receive DEL cmd", nil
+	case "SUBSCRIBE":
+		err := validateParts(parts, 2)
+		if err != nil {
+			return "", err
+		}
+		return "Did receive SUBSCRIBE cmd", nil
+	case "PUBLISH":
+		err := validateParts(parts, 3)
+		if err != nil {
+			return "", err
+		}
+		return "Did receive PUBLISH cmd", nil
+	default:
+		return "", fmt.Errorf("unknown command: %v", cmd)
 	}
 }
